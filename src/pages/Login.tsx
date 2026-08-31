@@ -192,17 +192,14 @@ const LoginPage = () => {
       {/* ───── Left Blue Panel ───── */}
       <div className="login-left">
         {/* Logo top-left */}
-        <div className="absolute top-8 left-8 z-10 flex items-center gap-3">
-          <div className="bg-white rounded-2xl p-3 shadow-lg">
+        <div className="absolute top-8 left-8 z-10 flex items-center">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl px-5 py-3 shadow-xl border border-white/40 transition-all duration-300 hover:shadow-2xl">
             <img
               src="/lottmart-logo.png"
-              alt="Lottmart"
-              className="h-24 w-auto object-contain"
+              alt="LOTTMART - Trade at Scale. Earn More."
+              className="h-10 w-auto object-contain"
             />
           </div>
-          <span className="text-white text-2xl font-bold tracking-tight drop-shadow-md">
-            Lottmart
-          </span>
         </div>
 
         {/* Illustration */}

@@ -136,7 +136,11 @@ export const OrderDetail: React.FC = () => {
           {/* Order Financial Summary & Tokens */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FinancialSummaryCard order={order} />
-            <CommissionEarningsCard items={order.order_items || []} />
+            <CommissionEarningsCard
+              items={order.order_items || []}
+              orderId={order._id}
+              onRefresh={fetchOrder}
+            />
           </div>
 
           {/* Token Security */}

@@ -250,10 +250,10 @@ export const PromoterManageCommissionDrawer: React.FC<PromoterManageCommissionDr
   };
 
   // Actions
-  const handleConfirmRelease = async (commissionIds: string[]) => {
-    const res = await PromoterCommissionService.releaseCommissions(commissionIds);
+  const handleConfirmRelease = async (items: PromoterCommissionItem[]) => {
+    const res = await PromoterCommissionService.releaseCommissions(items);
     if (res.success) {
-      showToast("Commission released successfully.", "success");
+      showToast("Commission marked as transferred successfully.", "success");
       setReleaseModalItem(null);
       fetchPromoterData();
     } else {

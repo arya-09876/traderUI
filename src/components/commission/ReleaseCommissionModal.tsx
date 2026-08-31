@@ -1,13 +1,12 @@
 import React from "react";
 import { PromoterCommissionItem, BulkReleaseResultItem } from "../../services/PromoterCommissionService";
 import { Wallet, AlertTriangle, CheckCircle2, X } from "lucide-react";
-import moment from "moment";
 
 interface ReleaseCommissionModalProps {
   isOpen: boolean;
   selectedItems: PromoterCommissionItem[];
   onClose: () => void;
-  onConfirmRelease: (commissionIds: string[]) => void;
+  onConfirmRelease: (items: PromoterCommissionItem[]) => void;
   isProcessing?: boolean;
   bulkResults?: BulkReleaseResultItem[] | null;
 }
@@ -27,7 +26,7 @@ export const ReleaseCommissionModal: React.FC<ReleaseCommissionModalProps> = ({
   const totalAmount = selectedItems.reduce((sum, item) => sum + (item.commissionAmount || 0), 0);
 
   const handleConfirm = () => {
-    onConfirmRelease(selectedItems.map((item) => item._id));
+    onConfirmRelease(selectedItems);
   };
 
   return (
@@ -137,15 +136,19 @@ export const ReleaseCommissionModal: React.FC<ReleaseCommissionModalProps> = ({
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400 uppercase text-[10px]">Order ID</span>
-                      <span className="font-bold text-slate-800 font-mono">#{singleItem.numericOrderId}</span>
+                      <span className="font-bold text-slate-800 font-mono">#{singleItem.numericOrderId || singleItem.orderId}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 uppercase text-[10px]">Order Item ID</span>
+                      <span className="font-bold text-slate-700 font-mono">{singleItem.orderItemId || singleItem._id}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400 uppercase text-[10px]">Commission Amount</span>
                       <span className="font-extrabold text-emerald-600 text-sm">₹{singleItem.commissionAmount.toLocaleString("en-IN")}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400 uppercase text-[10px]">Release Date</span>
-                      <span className="font-bold text-slate-700">{moment(singleItem.scheduledDate || singleItem.createdAt).format("DD MMM YYYY")}</span>
+                      <span className="text-slate-400 uppercase text-[10px]">Transfer Method</span>
+                      <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded text-[10px]">MANUAL</span>
                     </div>
                     <div className="flex justify-between items-center border-t border-slate-200/60 pt-2">
                       <span className="text-slate-400 uppercase text-[10px]">Destination</span>

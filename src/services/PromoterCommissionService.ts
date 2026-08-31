@@ -1,7 +1,16 @@
 import { getCompleteUrlV1 } from "../utils";
 import { httpClient } from "./ApiService";
 
-export type CommissionStatus = "PENDING" | "SCHEDULED" | "DUE" | "RELEASED" | "HOLD";
+export type CommissionStatus =
+  | "ELIGIBLE"
+  | "SCHEDULED"
+  | "DUE"
+  | "ON_HOLD"
+  | "TRANSFERRED"
+  // Backward compatibility aliases
+  | "PENDING"
+  | "RELEASED"
+  | "HOLD";
 
 export interface AuditLogItem {
   action: string;
@@ -16,6 +25,7 @@ export interface AuditLogItem {
 export interface PromoterCommissionItem {
   _id: string; // Commission ID (e.g. COMM-100249)
   orderId: string; // MongoDB Order ID
+  orderItemId?: string; // MongoDB OrderItem ID
   numericOrderId: number; // e.g. 100043
   promoterId: string; // e.g. USR-847291
   promoterName: string; // e.g. XYZ / Amit Kumar
@@ -40,6 +50,7 @@ export interface PromoterCommissionItem {
   // Release metadata
   releasedDate?: string;
   releasedBy?: string;
+  transferredMethod?: string;
   walletTransactionId?: string;
 
   // Hold metadata
@@ -54,6 +65,7 @@ export interface PromoterCommissionItem {
 
 export interface BulkReleaseResultItem {
   commissionId: string;
+  orderId?: string;
   status: "SUCCESS" | "FAILED" | "ALREADY_RELEASED" | "INVALID" | "UNAUTHORIZED";
   error?: string;
   walletTransactionId?: string;
@@ -118,11 +130,12 @@ export class PromoterCommissionService {
               const commId = `COMM-${ord.numericOrderId || ord._id.slice(-6)}-${idx + 1}`;
               
               // Calculate status
-              let itemStatus: CommissionStatus = isTransferred ? "RELEASED" : "PENDING";
+              let itemStatus: CommissionStatus = isTransferred ? "TRANSFERRED" : "ELIGIBLE";
 
               extracted.push({
                 _id: commId,
                 orderId: ord._id,
+                orderItemId: item._id || ord._id,
                 numericOrderId: ord.numericOrderId || 10000 + idx,
                 promoterId,
                 promoterName: item.promoterName || `Promoter (${promoterId})`,
@@ -136,6 +149,7 @@ export class PromoterCommissionService {
                 status: itemStatus,
                 createdAt: ord.createdAt || new Date().toISOString(),
                 updatedAt: ord.updatedAt || new Date().toISOString(),
+                transferredMethod: isTransferred ? "MANUAL" : undefined,
                 walletTransactionId: isTransferred ? `TXN-ORD-${ord.numericOrderId}` : undefined,
               });
             }
@@ -151,12 +165,26 @@ export class PromoterCommissionService {
               c._id.toLowerCase().includes(q) ||
               String(c.numericOrderId).includes(q) ||
               c.promoterName.toLowerCase().includes(q) ||
-              c.promoterPhone.includes(q)
+              c.promoterPhone.includes(q) ||
+              c.promoterId.toLowerCase().includes(q)
           );
         }
 
         if (params.status && params.status !== "all") {
-          filtered = filtered.filter((c) => c.status.toLowerCase() === params.status?.toLowerCase());
+          const targetStatus = params.status.toUpperCase();
+          filtered = filtered.filter((c) => {
+            const s = c.status.toUpperCase();
+            if (targetStatus === "ELIGIBLE" || targetStatus === "PENDING") {
+              return s === "ELIGIBLE" || s === "PENDING";
+            }
+            if (targetStatus === "TRANSFERRED" || targetStatus === "RELEASED") {
+              return s === "TRANSFERRED" || s === "RELEASED";
+            }
+            if (targetStatus === "ON_HOLD" || targetStatus === "HOLD") {
+              return s === "ON_HOLD" || s === "HOLD";
+            }
+            return s === targetStatus;
+          });
         }
 
         const page = params.page || 1;
@@ -187,12 +215,58 @@ export class PromoterCommissionService {
   }
 
   /**
+   * Existing Production API Call:
+   * POST /api/order/mark-commission-as-transferred
+   * Payload:
+   * {
+   *   "orderId": "<orderId>",
+   *   "orderItemIds": ["<orderItemId>"],
+   *   "transferredMethod": "MANUAL"
+   * }
+   */
+  static async markCommissionAsTransferred(payload: {
+    orderId: string;
+    orderItemIds: string[];
+    transferredMethod?: string;
+  }): Promise<{ success: boolean; data?: any; message: string }> {
+    try {
+      const url = getCompleteUrlV1("order/mark-commission-as-transferred");
+      const body = {
+        orderId: payload.orderId,
+        orderItemIds: payload.orderItemIds,
+        transferredMethod: payload.transferredMethod || "MANUAL",
+      };
+      const res = await httpClient.post(url, body);
+      const json = await res.json().catch(() => ({}));
+
+      if (res.ok && (json.status === 200 || json.success || json.type === "success" || !json.error)) {
+        return {
+          success: true,
+          data: json,
+          message: json.message || "Commission marked as transferred successfully.",
+        };
+      } else {
+        return {
+          success: false,
+          message: json.message || json.error || `Transfer failed with HTTP status ${res.status}.`,
+        };
+      }
+    } catch (error: any) {
+      console.error("API error calling mark-commission-as-transferred:", error);
+      return {
+        success: false,
+        message: error.message || "Network request failed while marking commission as transferred.",
+      };
+    }
+  }
+
+  /**
    * Schedule commissions for release via backend API.
    * POST /v1/promoter-commission/schedule
    */
   static async scheduleCommissions(payload: {
     commissionIds: string[];
-    scheduleType: "today" | "days" | "custom_date";
+    scheduleType: "today" | "days" | "custom_date" | "RELEASE_TODAY" | "AFTER_X_DAYS" | "CUSTOM_DATE";
     days?: number;
     releaseDate?: string;
     note?: string;
@@ -206,7 +280,7 @@ export class PromoterCommissionService {
         return { success: true, message: json.message || "Commissions scheduled successfully.", backendSupported: true };
       } else {
         const json = await res.json().catch(() => ({}));
-        return { success: false, message: json.message || "Backend support required for commission scheduling.", backendSupported: false };
+        return { success: false, message: json.message || "Backend support required for commission scheduling persistence.", backendSupported: false };
       }
     } catch (error) {
       console.error("API error scheduling commission:", error);
@@ -219,54 +293,95 @@ export class PromoterCommissionService {
   }
 
   /**
-   * Manually release commissions to promoter wallet via backend API.
-   * POST /v1/promoter-commission/release
-   * Frontend passes ONLY commissionIds (never client amount). Backend is source of truth for amounts.
+   * Release commissions using existing POST /api/order/mark-commission-as-transferred endpoint.
+   * Group items by orderId and execute transfer API for target order.
    */
-  static async releaseCommissions(commissionIds: string[]): Promise<{
+  static async releaseCommissions(
+    itemsInput: (PromoterCommissionItem | { orderId: string; orderItemId?: string; _id?: string })[] | string[]
+  ): Promise<{
     success: boolean;
     results: BulkReleaseResultItem[];
     message: string;
     backendSupported: boolean;
   }> {
-    try {
-      const url = getCompleteUrlV1("promoter-commission/release");
-      const res = await httpClient.post(url, { commissionIds });
-
-      if (res.ok) {
-        const json = await res.json();
-        return {
-          success: true,
-          results: json.results || commissionIds.map((id) => ({ commissionId: id, status: "SUCCESS" })),
-          message: json.message || "Commissions released successfully.",
-          backendSupported: true,
-        };
-      } else {
-        const json = await res.json().catch(() => ({}));
-        return {
-          success: false,
-          results: commissionIds.map((id) => ({
-            commissionId: id,
-            status: "FAILED",
-            error: json.message || "Backend support required for financial release transaction.",
-          })),
-          message: json.message || "Backend support required for commission release.",
-          backendSupported: false,
-        };
-      }
-    } catch (error) {
-      console.error("API error releasing commission:", error);
-      return {
-        success: false,
-        results: commissionIds.map((id) => ({
-          commissionId: id,
-          status: "FAILED",
-          error: "BACKEND SUPPORT REQUIRED: Endpoint POST /v1/promoter-commission/release is missing.",
-        })),
-        message: "BACKEND SUPPORT REQUIRED: Endpoint POST /v1/promoter-commission/release is missing.",
-        backendSupported: false,
-      };
+    if (!itemsInput || itemsInput.length === 0) {
+      return { success: false, results: [], message: "No items provided for release.", backendSupported: true };
     }
+
+    // Build target release items with orderId and orderItemId
+    const releaseTargets: { commissionId: string; orderId: string; orderItemId: string }[] = [];
+
+    for (const item of itemsInput) {
+      if (typeof item === "string") {
+        releaseTargets.push({
+          commissionId: item,
+          orderId: item,
+          orderItemId: item,
+        });
+      } else {
+        const commId = item._id || "COMM-UNKNOWN";
+        const oId = item.orderId || item._id || "";
+        const oiId = (item as any).orderItemId || item._id || oId;
+        releaseTargets.push({
+          commissionId: commId,
+          orderId: oId,
+          orderItemId: oiId,
+        });
+      }
+    }
+
+    // Group items by orderId
+    const groupedByOrder: Record<string, { commissionIds: string[]; itemIds: string[] }> = {};
+    releaseTargets.forEach((t) => {
+      if (!groupedByOrder[t.orderId]) {
+        groupedByOrder[t.orderId] = { commissionIds: [], itemIds: [] };
+      }
+      groupedByOrder[t.orderId].commissionIds.push(t.commissionId);
+      groupedByOrder[t.orderId].itemIds.push(t.orderItemId);
+    });
+
+    const results: BulkReleaseResultItem[] = [];
+    let allSuccessful = true;
+    let primaryMessage = "";
+
+    for (const [orderId, group] of Object.entries(groupedByOrder)) {
+      const apiRes = await this.markCommissionAsTransferred({
+        orderId,
+        orderItemIds: group.itemIds,
+        transferredMethod: "MANUAL",
+      });
+
+      if (apiRes.success) {
+        primaryMessage = apiRes.message;
+        group.commissionIds.forEach((cId) => {
+          results.push({
+            commissionId: cId,
+            orderId,
+            status: "SUCCESS",
+          });
+        });
+      } else {
+        allSuccessful = false;
+        primaryMessage = apiRes.message;
+        group.commissionIds.forEach((cId) => {
+          results.push({
+            commissionId: cId,
+            orderId,
+            status: "FAILED",
+            error: apiRes.message,
+          });
+        });
+      }
+    }
+
+    return {
+      success: allSuccessful,
+      results,
+      message: allSuccessful
+        ? primaryMessage || "Commission(s) marked as transferred successfully."
+        : primaryMessage || "Failed to mark commission as transferred.",
+      backendSupported: true,
+    };
   }
 
   /**

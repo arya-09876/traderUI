@@ -75,26 +75,23 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
         } transition-all duration-300 ease-in-out bg-gradient-to-b from-slate-900 via-[#0b0f19] to-slate-950 flex flex-col text-white shadow-2xl z-30 relative border-r border-slate-800/40`}
       >
         {/* Sidebar Top with Toggle */}
-        <div className={`flex items-center p-5 border-b border-slate-800/60 ${isOpen ? 'justify-between' : 'flex-col gap-4 justify-center'}`}>
+        <div className={`flex items-center p-4 border-b border-slate-800/60 ${isOpen ? 'justify-between' : 'flex-col gap-4 justify-center'}`}>
           {isOpen ? (
-            <div className="flex items-center gap-3">
-              <div className="bg-white/95 rounded-xl p-1.5 shadow-md border border-slate-200 flex items-center justify-center">
+            <div className="flex items-center">
+              <div className="bg-white rounded-xl px-3 py-1.5 shadow-md border border-slate-100 flex items-center justify-center transition-all duration-200">
                 <img
                   src="/lottmart-logo.png"
-                  alt="Lottmart"
-                  className="h-8 w-8 object-contain"
+                  alt="LOTTMART"
+                  className="h-8 w-auto object-contain max-w-[145px]"
                 />
               </div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
-                Lottmart
-              </span>
             </div>
           ) : (
-            <div className="bg-white/95 rounded-xl p-1.5 shadow-md border border-slate-200 flex items-center justify-center">
+            <div className="bg-white rounded-xl p-1.5 shadow-md border border-slate-100 flex items-center justify-center transition-transform hover:scale-105">
               <img
-                src="/lottmart-logo.png"
-                alt="Lottmart"
-                className="h-8 w-8 object-contain"
+                src="/lottmart-icon.png"
+                alt="LOTTMART"
+                className="h-7 w-7 object-contain"
               />
             </div>
           )}

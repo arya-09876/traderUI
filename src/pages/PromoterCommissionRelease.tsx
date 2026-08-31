@@ -210,10 +210,10 @@ export const PromoterCommissionRelease: React.FC = () => {
   };
 
   // 2. EXECUTE RELEASE ACTION
-  const handleConfirmRelease = async (commissionIds: string[]) => {
+  const handleConfirmRelease = async (items: PromoterCommissionItem[]) => {
     setReleaseModalState((prev) => ({ ...prev, isProcessing: true }));
 
-    const res = await PromoterCommissionService.releaseCommissions(commissionIds);
+    const res = await PromoterCommissionService.releaseCommissions(items);
 
     if (res.success && res.backendSupported) {
       showToast(res.message, "success");
@@ -448,11 +448,11 @@ export const PromoterCommissionRelease: React.FC = () => {
         {/* Tabs Bar */}
         <div className="flex items-center gap-2 border-b border-slate-100 pb-3 overflow-x-auto scrollbar-none">
           {[
-            { id: "pending", label: "Pending", count: summaryStats.pending.count },
+            { id: "pending", label: "Eligible", count: summaryStats.pending.count },
             { id: "scheduled", label: "Scheduled", count: summaryStats.scheduled.count },
-            { id: "due", label: "Due for Release", count: summaryStats.due.count },
-            { id: "released", label: "Released", count: summaryStats.released.count },
-            { id: "hold", label: "On Hold", count: commissions.filter((c) => c.status === "HOLD").length },
+            { id: "due", label: "Due", count: summaryStats.due.count },
+            { id: "released", label: "Transferred", count: summaryStats.released.count },
+            { id: "hold", label: "On Hold", count: commissions.filter((c) => c.status === "HOLD" || c.status === "ON_HOLD").length },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
