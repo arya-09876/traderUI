@@ -7,6 +7,7 @@ import { FormError } from "./FormError";
 import { SearchableDropdown, DropdownOption } from "./SearchableDropdown";
 import { ProductGalleryUploader } from "./ProductGalleryUploader";
 import { FaTimes } from "react-icons/fa";
+import { PRODUCT_UNITS } from "../constants";
 
 const defaultValues: IMasterProduct = {
   name: "",
@@ -17,6 +18,7 @@ const defaultValues: IMasterProduct = {
   skuCode: "",
   mrp: "",
   size: "",
+  unit: "",
   images: [],
   description: "",
 };
@@ -69,6 +71,7 @@ export function CreateMasterProductModal({
         skuCode: editingProduct.skuCode || "",
         mrp: editingProduct.mrp !== undefined ? String(editingProduct.mrp) : "",
         size: editingProduct.size || "",
+        unit: editingProduct.unit || "",
         images: editingProduct.media || [],
         description: editingProduct.description || "",
       });
@@ -189,6 +192,7 @@ export function CreateMasterProductModal({
         skuCode: data.skuCode.trim(),
         mrp: data.mrp ? Number(data.mrp) : 0,
         size: data.size?.trim() || "Standard",
+        unit: data.unit?.trim() || "",
         description: data.description?.trim() || "",
         media: reorderedMedia,
       };
@@ -332,9 +336,9 @@ export function CreateMasterProductModal({
                 <FormError errorText={errors.skuCode?.message} />
               </div>
 
-              {/* Brand & Size Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+              {/* Brand, Size & Unit Row */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="space-y-1.5 col-span-1">
                   <label className="block text-sm font-semibold text-slate-700">Brand</label>
                   <input
                     type="text"
@@ -344,14 +348,29 @@ export function CreateMasterProductModal({
                   />
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 col-span-1">
                   <label className="block text-sm font-semibold text-slate-700">Size</label>
                   <input
                     type="text"
-                    placeholder="e.g. 50-ml"
+                    placeholder="e.g. Standard"
                     {...register("size")}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm placeholder:text-slate-400 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                   />
+                </div>
+
+                <div className="space-y-1.5 col-span-1">
+                  <label className="block text-sm font-semibold text-slate-700">Unit</label>
+                  <select
+                    {...register("unit")}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                  >
+                    <option value="">Select Unit</option>
+                    {PRODUCT_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

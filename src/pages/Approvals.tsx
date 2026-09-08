@@ -23,6 +23,7 @@ import ApprovalCard from "../components/approvals/ApprovalCard";
 import ApprovalToolbar from "../components/approvals/ApprovalToolbar";
 import ApprovalFilters from "../components/approvals/ApprovalFilters";
 import ApprovalPreview from "../components/approvals/ApprovalPreview";
+import { validateCommissionAllocation } from "../utils/utils";
 
 
 interface SellerRequest {
@@ -51,7 +52,7 @@ const initialFees: IInitialFees = {
   promoterFee: "",
   messengerFee: "",
   connectorFee: "",
-  platformFee: "3",
+  platformFee: "",
 };
 
 export type RequestType = "accept" | "reject";
@@ -186,7 +187,7 @@ export const Approvals = () => {
       data["metadata"] = {
         promoterCommission: m,
         connectorCommission: c,
-        platformFee: p || 3,
+        platformFee: p,
       };
     } else if (rejectionOrChangesData) {
       data["reason"] = rejectionOrChangesData.reason || "";
@@ -388,6 +389,8 @@ export const Approvals = () => {
 
   // Preview Action Handlers
   const handlePreviewApprove = () => {
+    setFees(initialFees);
+    setError("");
     if (activeDetail.type === "product_approval") {
       setPreviewApproveModal(true);
     } else {
@@ -403,16 +406,42 @@ export const Approvals = () => {
     setPreviewChangesModal(true);
   };
 
+  // Extract active detail promotion fee from API
+  const activeMetadata = activeDetail?.metadata || {};
+  const activeProdDetails = activeMetadata.productDetails || {};
+  const apiPromotionFee = Number(
+    activeMetadata.promotionFee ??
+    activeProdDetails.promotionFee ??
+    activeMetadata.promotionCommission ??
+    activeMetadata.promotionFeePercentage ??
+    activeDetail?.promotionFee ??
+    0
+  );
+
+  const previewCommissionValidation = validateCommissionAllocation(
+    fees.promoterFee || fees.messengerFee,
+    fees.connectorFee,
+    fees.platformFee,
+    apiPromotionFee
+  );
+
   const submitPreviewApproval = async () => {
     setError("");
-    const m = parseInt(fees.promoterFee || fees.messengerFee);
-    const c = parseInt(fees.connectorFee);
-    const p = parseInt(fees.platformFee);
+    const validation = validateCommissionAllocation(
+      fees.promoterFee || fees.messengerFee,
+      fees.connectorFee,
+      fees.platformFee,
+      apiPromotionFee
+    );
 
-    if (isNaN(m) || isNaN(c) || isNaN(p)) {
-      setError("All commission fields must be valid numbers");
+    if (!validation.isValid) {
+      setError(validation.message);
       return;
     }
+
+    const m = parseFloat(String(fees.promoterFee || fees.messengerFee || 0)) || 0;
+    const c = parseFloat(String(fees.connectorFee || 0)) || 0;
+    const p = parseFloat(String(fees.platformFee || 0)) || 0;
 
     const payloadFees = {
       promoterCommission: m,
@@ -750,12 +779,19 @@ export const Approvals = () => {
               </div>
             )}
 
+            {/* API Promotion Fee Summary Badge */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center text-xs font-bold text-slate-700">
+              <span className="text-slate-500 font-semibold">Promotion Fee (from API):</span>
+              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-lg font-black">{apiPromotionFee}%</span>
+            </div>
+
             <div className="space-y-3.5">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Promoter Commission (%)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 5"
+                  step="any"
+                  placeholder="e.g. 3"
                   value={fees.promoterFee || fees.messengerFee}
                   onChange={(e) => setFees({ ...fees, promoterFee: e.target.value, messengerFee: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs focus:bg-white focus:border-slate-400 outline-none transition"
@@ -766,7 +802,8 @@ export const Approvals = () => {
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Connector Commission (%)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 3"
+                  step="any"
+                  placeholder="e.g. 1"
                   value={fees.connectorFee}
                   onChange={(e) => setFees({ ...fees, connectorFee: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs focus:bg-white focus:border-slate-400 outline-none transition"
@@ -777,12 +814,36 @@ export const Approvals = () => {
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Platform Margin / Fee (%)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 3"
+                  step="any"
+                  placeholder="e.g. 1"
                   value={fees.platformFee}
                   onChange={(e) => setFees({ ...fees, platformFee: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs focus:bg-white focus:border-slate-400 outline-none transition"
                 />
               </div>
+            </div>
+
+            {/* Dynamic Inline Validation Alert */}
+            <div className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 transition ${
+              previewCommissionValidation.status === "success"
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : previewCommissionValidation.status === "warning"
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-rose-50 text-rose-800 border-rose-200"
+            }`}>
+              <div className="flex items-center gap-2">
+                {previewCommissionValidation.status === "success" ? (
+                  <FiCheckCircle className="text-emerald-600 flex-shrink-0" size={16} />
+                ) : previewCommissionValidation.status === "warning" ? (
+                  <FiAlertCircle className="text-amber-600 flex-shrink-0" size={16} />
+                ) : (
+                  <FiXCircle className="text-rose-600 flex-shrink-0" size={16} />
+                )}
+                <span>{previewCommissionValidation.message}</span>
+              </div>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-white/80 border border-current whitespace-nowrap">
+                {previewCommissionValidation.total}% / {previewCommissionValidation.target}%
+              </span>
             </div>
 
             <div className="flex gap-2 pt-3 border-t border-slate-100 justify-end">
@@ -794,8 +855,8 @@ export const Approvals = () => {
               </button>
               <button
                 onClick={submitPreviewApproval}
-                disabled={loading}
-                className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs cursor-pointer transition disabled:opacity-50"
+                disabled={loading || !previewCommissionValidation.isValid}
+                className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Complete Approval
               </button>

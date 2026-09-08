@@ -320,6 +320,14 @@ export function MasterProductDetails() {
                 <p className="text-sm font-semibold text-slate-700">{product.size || "—"}</p>
               </div>
 
+              {/* Unit */}
+              <div className="space-y-1">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">
+                  Unit
+                </span>
+                <p className="text-sm font-semibold text-slate-700">{product.unit || "—"}</p>
+              </div>
+
               {/* Category */}
               <div className="space-y-1">
                 <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block">

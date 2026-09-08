@@ -33,4 +33,71 @@ export const maskBankAccount = (accountNumber?: string | null): string => {
   return "•••• •••• " + last4;
 };
 
+export interface CommissionValidationResult {
+  isValid: boolean;
+  total: number;
+  target: number;
+  remaining: number;
+  message: string;
+  status: "success" | "warning" | "error";
+}
+
+export const validateCommissionAllocation = (
+  promoterVal: string | number | undefined,
+  connectorVal: string | number | undefined,
+  platformVal: string | number | undefined,
+  targetFeeVal: string | number | undefined
+): CommissionValidationResult => {
+  const pComm = parseFloat(String(promoterVal || 0)) || 0;
+  const cComm = parseFloat(String(connectorVal || 0)) || 0;
+  const platFee = parseFloat(String(platformVal || 0)) || 0;
+  const targetFee = parseFloat(String(targetFeeVal || 0)) || 0;
+
+  const total = Number((pComm + cComm + platFee).toFixed(4));
+  const target = Number(targetFee.toFixed(4));
+
+  if (target <= 0) {
+    return {
+      isValid: false,
+      total,
+      target,
+      remaining: 0,
+      message: "Promotion Fee percentage from API is missing or invalid.",
+      status: "error",
+    };
+  }
+
+  const diff = Number((total - target).toFixed(4));
+
+  if (Math.abs(diff) < 0.0001) {
+    return {
+      isValid: true,
+      total,
+      target,
+      remaining: 0,
+      message: "Commission allocation is complete.",
+      status: "success",
+    };
+  } else if (diff > 0) {
+    return {
+      isValid: false,
+      total,
+      target,
+      remaining: 0,
+      message: `Total commission cannot exceed the available Promotion Fee of ${target}%.`,
+      status: "error",
+    };
+  } else {
+    const remaining = Number((target - total).toFixed(4));
+    return {
+      isValid: false,
+      total,
+      target,
+      remaining,
+      message: `Please allocate the remaining ${remaining}% to complete the total Promotion Fee of ${target}%.`,
+      status: "warning",
+    };
+  }
+};
+
 

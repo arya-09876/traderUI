@@ -90,6 +90,13 @@ export const MasterProductCard: React.FC<MasterProductCardProps> = ({ product })
                 <span className="font-semibold text-slate-800 block mt-0.5">{master.size}</span>
               </div>
             )}
+
+            {master.unit && (
+              <div className="p-2 bg-slate-50/80 rounded-lg border border-slate-100">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 block">Unit</span>
+                <span className="font-semibold text-slate-800 block mt-0.5">{master.unit}</span>
+              </div>
+            )}
           </div>
 
           {master.description && (

@@ -21,6 +21,7 @@ import { AddressDetailsCard } from "../components/order/AddressDetailsCard";
 import { CompactFutureCards } from "../components/order/CompactFutureCards";
 import { ActivityAuditLog } from "../components/order/ActivityAuditLog";
 import { AdditionalTechnicalDetails } from "../components/order/AdditionalTechnicalDetails";
+import { ProductSalesSummaryCard } from "../components/order/ProductSalesSummaryCard";
 
 export const OrderDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -117,6 +118,29 @@ export const OrderDetail: React.FC = () => {
     );
   }
 
+  const extractStringId = (idVal: any): string | null => {
+    if (!idVal) return null;
+    if (typeof idVal === "string") return idVal;
+    if (typeof idVal === "object") {
+      if (idVal._id && typeof idVal._id === "string") return idVal._id;
+      if (idVal.id && typeof idVal.id === "string") return idVal.id;
+    }
+    return String(idVal);
+  };
+
+  // Extract unique string productIds from order items
+  const productIds = Array.from(
+    new Set(
+      (order.order_items || [])
+        .map((item) =>
+          extractStringId(item.productId) ||
+          extractStringId((item as any).lot?.productId) ||
+          extractStringId((order as any).productId)
+        )
+        .filter((idVal): idVal is string => Boolean(idVal) && typeof idVal === "string")
+    )
+  );
+
   return (
     <div className="space-y-6 pb-12">
       {/* 1. ORDER HEADER */}
@@ -139,9 +163,25 @@ export const OrderDetail: React.FC = () => {
             <CommissionEarningsCard
               items={order.order_items || []}
               orderId={order._id}
+              orderStatus={order.status}
+              orderDeliveredAt={order.deliveredAt}
               onRefresh={fetchOrder}
             />
           </div>
+
+          {/* Product Level Order & Sales Summary Analytics */}
+          {productIds.map((prodId, pIdx) => {
+            const matchingItem = (order.order_items || []).find(
+              (i) => extractStringId(i.productId) === prodId
+            );
+            return (
+              <ProductSalesSummaryCard
+                key={String(prodId) || String(pIdx)}
+                productId={String(prodId)}
+                productName={matchingItem?.brand || matchingItem?.description}
+              />
+            );
+          })}
 
           {/* Token Security */}
           <TokenSecurityCard items={order.order_items || []} />

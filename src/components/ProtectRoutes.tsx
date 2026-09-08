@@ -1,5 +1,5 @@
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   FaUserCircle,
   FaList,
@@ -15,9 +15,15 @@ import {
   FaSlidersH,
   FaBell,
 } from "react-icons/fa";
-import { FiMenu, FiLogOut } from "react-icons/fi";
+import { FiMenu, FiLogOut, FiUser, FiSettings } from "react-icons/fi";
 import { FaShop } from "react-icons/fa6";
 import { STATIC_NOTIFICATIONS } from "../constants/staticNotifications";
+import {
+  getLoggedInUserSession,
+  getUserDisplayName,
+  getUserRoleDisplay,
+  getUserInitials,
+} from "../utils/userUtils";
 
 export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem("user");
@@ -26,6 +32,20 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
   const navigate = useNavigate();
   const [openMenu, setOpenMenu] = useState(false);
   const [openNotifications, setOpenNotifications] = useState(false);
+
+  // Dynamic user session tracking
+  const [sessionCount, setSessionCount] = useState(0);
+  useEffect(() => {
+    const handleUpdate = () => setSessionCount((prev) => prev + 1);
+    window.addEventListener("lottmart_user_session_updated", handleUpdate);
+    return () => window.removeEventListener("lottmart_user_session_updated", handleUpdate);
+  }, []);
+
+  const { user } = getLoggedInUserSession();
+  const displayName = getUserDisplayName(user);
+  const roleDisplay = getUserRoleDisplay(user);
+  const initials = getUserInitials(displayName);
+  const userEmail = user?.email || "admin@lottmart.com";
 
   if (!token) {
     return <Navigate to="/" />;
@@ -36,6 +56,7 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
     { path: "/users", label: "Users", icon: <FaUsers /> },
 
     { path: "/category-list", label: "Category List", icon: <FaTags /> },
+    { path: "/industry-types", label: "Industry Types", icon: <FaTags /> },
     // { path: "/create-master", label: "Create Master", icon: <FaThLarge /> },
     {
       path: "/master-product-list",
@@ -161,12 +182,22 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
           <div className="p-4 border-t border-slate-800/60 bg-slate-950/25 flex flex-col gap-3">
             <div className="flex items-center gap-3 px-2 py-1">
               <div className="relative flex-shrink-0">
-                <FaUserCircle size={36} className="text-slate-400" />
+                {user?.avatar || user?.profileImage || user?.profileImg ? (
+                  <img
+                    src={user.avatar || user.profileImage || user.profileImg}
+                    alt={displayName}
+                    className="w-9 h-9 rounded-full object-cover border border-slate-700 shadow-xs"
+                  />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center border border-blue-400">
+                    {initials}
+                  </div>
+                )}
                 <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-slate-950 rounded-full"></div>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold text-slate-200 truncate">Administrator</p>
-                <p className="text-[10px] text-slate-500 font-medium truncate">Super Admin</p>
+                <p className="text-xs font-semibold text-slate-200 truncate">{displayName}</p>
+                <p className="text-[10px] text-slate-500 font-medium truncate">{roleDisplay}</p>
               </div>
             </div>
             <button
@@ -179,11 +210,21 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
           </div>
         ) : (
           <div className="p-4 border-t border-slate-800/60 bg-slate-950/25 flex flex-col items-center gap-4">
-            <div className="relative group/avatar cursor-pointer">
-              <FaUserCircle size={32} className="text-slate-400" />
+            <div className="relative group/avatar cursor-pointer" onClick={() => navigate("/profile")}>
+              {user?.avatar || user?.profileImage || user?.profileImg ? (
+                <img
+                  src={user.avatar || user.profileImage || user.profileImg}
+                  alt={displayName}
+                  className="w-8 h-8 rounded-full object-cover border border-slate-700"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-extrabold text-2xs flex items-center justify-center border border-blue-400">
+                  {initials}
+                </div>
+              )}
               <div className="absolute bottom-0 right-0 w-2 h-2 bg-emerald-500 border border-slate-950 rounded-full"></div>
               <div className="absolute left-14 bottom-1 bg-slate-900 border border-slate-800 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-all duration-200 translate-x-2 group-hover/avatar:translate-x-0 whitespace-nowrap z-50 shadow-xl shadow-black/40">
-                Administrator (Super Admin)
+                {displayName} ({roleDisplay})
               </div>
             </div>
             <button
@@ -322,41 +363,58 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
                 }}
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-semibold text-slate-700 leading-none">Administrator</p>
-                  <p className="text-[11px] text-slate-400 font-medium mt-1">Super Admin</p>
+                  <p className="text-sm font-semibold text-slate-700 leading-none">{displayName}</p>
+                  <p className="text-[11px] text-slate-400 font-medium mt-1">{roleDisplay}</p>
                 </div>
                 <div className="relative">
-                  <FaUserCircle
-                    size={36}
-                    className="text-slate-300 group-hover:text-blue-600 transition-all shadow-inner rounded-full"
-                  />
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
+                  {user?.avatar || user?.profileImage || user?.profileImg ? (
+                    <img
+                      src={user.avatar || user.profileImage || user.profileImg}
+                      alt={displayName}
+                      className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-2xs group-hover:border-blue-500 transition"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-extrabold text-xs flex items-center justify-center border border-blue-400 shadow-xs group-hover:scale-105 transition">
+                      {initials}
+                    </div>
+                  )}
+                  <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full"></div>
                 </div>
               </div>
 
               {openMenu && (
                 <div className="absolute right-0 mt-3 w-56 bg-white border border-slate-100 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="px-4 py-3 border-b border-slate-50 mb-2">
-                    <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Account</p>
+                  <div className="px-4 py-3 border-b border-slate-50 mb-1">
+                    <p className="text-xs font-bold text-slate-800 truncate">{displayName}</p>
+                    <p className="text-[10px] text-slate-400 font-medium truncate">{userEmail}</p>
                   </div>
                   <button
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                    onClick={() => setOpenMenu(false)}
+                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setOpenMenu(false);
+                      navigate("/profile");
+                    }}
                   >
-                    My Profile
+                    <FiUser size={14} className="text-blue-600" />
+                    <span>My Profile</span>
                   </button>
                   <button
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-3 transition-colors"
-                    onClick={() => setOpenMenu(false)}
+                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setOpenMenu(false);
+                      navigate("/wallet/settings");
+                    }}
                   >
-                    Settings
+                    <FiSettings size={14} className="text-slate-400" />
+                    <span>Settings</span>
                   </button>
                   <div className="h-px bg-slate-50 my-1"></div>
                   <button
-                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors font-medium"
+                    className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors cursor-pointer"
                     onClick={handleLogout}
                   >
-                    Sign Out
+                    <FiLogOut size={14} className="text-red-500" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               )}

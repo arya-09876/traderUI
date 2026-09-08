@@ -27,4 +27,18 @@ const requestTypeOptions = [
   { label: "Product Approvals", value: AdminRequestsType.productApproval },
 ];
 
-export { baseUrl, genders, requestStatusOptions, requestTypeOptions };
+const PRODUCT_UNITS = [
+  "Kg",
+  "Gram",
+  "Mg",
+  "Litre",
+  "ML",
+  "Piece",
+  "Pack",
+  "Box",
+  "Dozen",
+  "Meter",
+  "Centimeter",
+];
+
+export { baseUrl, genders, requestStatusOptions, requestTypeOptions, PRODUCT_UNITS };

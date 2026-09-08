@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import moment from "moment";
 import BackButton from "../components/BackButton";
 import {
@@ -24,12 +24,14 @@ import {
   FiChevronUp,
   FiPieChart,
   FiPercent,
-  FiUserCheck
+  FiUserCheck,
+  FiRotateCcw
 } from "react-icons/fi";
 import { Button } from "../components/Button";
 import { hasPermission } from "../utils/permission";
 import { useNavigate } from "react-router-dom";
 import { ProductDeactivateModal } from "../components/ProductDeactivateModal";
+import { DealOrdersService } from "../services/DealOrdersService";
 
 type ProductDetailProps = {
   product: any;
@@ -49,6 +51,20 @@ interface DocumentItem {
 
 export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDetailProps) => {
   const navigate = useNavigate();
+
+  // Safely extract string primitive for displayProductId
+  const displayProductId = useMemo(() => {
+    if (!product) return "";
+    const idVal = product._id || product.id;
+    if (!idVal) return "";
+    if (typeof idVal === "string") return idVal;
+    if (typeof idVal === "object") {
+      if (idVal._id && typeof idVal._id === "string") return idVal._id;
+      if (idVal.id && typeof idVal.id === "string") return idVal.id;
+    }
+    return String(idVal);
+  }, [product]);
+
   const {
     description,
     media = [],
@@ -87,7 +103,7 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
     rejectedAt,
     createdAt_EP,
     updatedAt_EP
-  } = product;
+  } = product || {};
 
   // State managers
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -96,8 +112,83 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [sharedNotif, setSharedNotif] = useState(false);
-  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
-  const [analyticsDateRange, setAnalyticsDateRange] = useState("30 Days");
+  const [deactivateModalOpen, setDeactivateModalOpen] = useState<boolean>(false);
+  // Product Level Analytics State
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState<boolean>(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+  const [analyticsDateRange, setAnalyticsDateRange] = useState<string>("All Time");
+
+  // Safe string primitive extraction helper for JSX rendering
+  const renderTechId = (val: any) => {
+    if (val === undefined || val === null) return "—";
+    if (typeof val === "string") return val;
+    if (typeof val === "number") return String(val);
+    if (typeof val === "object") {
+      if (val._id) return String(val._id);
+      if (val.id) return String(val.id);
+      return JSON.stringify(val);
+    }
+    return String(val);
+  };
+
+  const analyticsFetchSeqRef = useRef<number>(0);
+
+  const fetchAnalyticsData = async (range: string) => {
+    if (!displayProductId) return;
+
+    const currentSeq = ++analyticsFetchSeqRef.current;
+    setIsAnalyticsLoading(true);
+    setAnalyticsError(null);
+
+    let startDate: string | undefined = undefined;
+    let endDate: string | undefined = undefined;
+
+    if (range === "7 Days") {
+      startDate = moment().subtract(7, "days").format("YYYY-MM-DD");
+      endDate = moment().format("YYYY-MM-DD");
+    } else if (range === "30 Days") {
+      startDate = moment().subtract(30, "days").format("YYYY-MM-DD");
+      endDate = moment().format("YYYY-MM-DD");
+    } else if (range === "90 Days") {
+      startDate = moment().subtract(90, "days").format("YYYY-MM-DD");
+      endDate = moment().format("YYYY-MM-DD");
+    }
+    // "All Time": startDate and endDate remain undefined so query params are omitted for historical data
+
+    try {
+      const res = await DealOrdersService.getProductLevelOrderSaleSummary({
+        productId: displayProductId,
+        startDate,
+        endDate,
+      });
+
+      if (currentSeq === analyticsFetchSeqRef.current) {
+        if (res.success && res.data) {
+          setAnalyticsData(res.data);
+        } else {
+          setAnalyticsData(null);
+          setAnalyticsError(res.message || "Failed to retrieve product analytics.");
+        }
+      }
+    } catch (err: any) {
+      if (currentSeq === analyticsFetchSeqRef.current) {
+        console.error("ProductDetail fetchAnalyticsData error:", err);
+        setAnalyticsData(null);
+        setAnalyticsError(err?.message || "Failed to connect to backend reporting API.");
+      }
+    } finally {
+      if (currentSeq === analyticsFetchSeqRef.current) {
+        setIsAnalyticsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (displayProductId) {
+      fetchAnalyticsData(analyticsDateRange);
+    }
+  }, [displayProductId, analyticsDateRange]);
 
   // Check permissions
   const canEdit = hasPermission("Master.Edit") || hasPermission("Product.Edit");
@@ -269,7 +360,7 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
             </div>
             
             <div className="flex items-center flex-wrap gap-2 text-[10px] text-slate-400 font-semibold mt-1">
-              <span>Product ID: <span className="font-mono text-slate-600">{product._id || product.id}</span></span>
+              <span>Product ID: <span className="font-mono text-slate-600">{displayProductId}</span></span>
               {brand && (
                 <>
                   <span className="h-1 w-1 bg-slate-200 rounded-full" />
@@ -440,7 +531,7 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
         </div>
       </section>
 
-      {/* ── 3. STATIC ANALYTICS UI SECTION (Requirement 13 & 29) ── */}
+      {/* ── 3. REAL-TIME PRODUCT ANALYTICS SECTION ── */}
       <section className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-slate-100">
           <div>
@@ -453,7 +544,7 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
 
           {/* Date Range Selector */}
           <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-xl border border-slate-200/60 text-xs">
-            {["7 Days", "30 Days", "90 Days", "Custom"].map((range) => (
+            {["7 Days", "30 Days", "90 Days", "All Time"].map((range) => (
               <button
                 key={range}
                 onClick={() => setAnalyticsDateRange(range)}
@@ -469,37 +560,84 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
           </div>
         </div>
 
-        {/* 4 Metric Cards with — placeholders */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Total Sales</span>
-            <span className="text-xl font-black text-slate-800">—</span>
+        {/* Loading State */}
+        {isAnalyticsLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-pulse">
+            <div className="h-20 bg-slate-100 rounded-2xl" />
+            <div className="h-20 bg-slate-100 rounded-2xl" />
+            <div className="h-20 bg-slate-100 rounded-2xl" />
+            <div className="h-20 bg-slate-100 rounded-2xl" />
           </div>
-
-          <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Quantity Sold</span>
-            <span className="text-xl font-black text-slate-800">—</span>
+        ) : analyticsError ? (
+          <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl text-xs space-y-2 text-rose-800">
+            <div className="flex items-center gap-2 font-bold text-rose-700">
+              <FiXCircle size={16} className="text-rose-500 flex-shrink-0" />
+              <span>Unable to load product analytics</span>
+            </div>
+            <p className="text-[11px] text-rose-600">{analyticsError}</p>
+            <button
+              onClick={() => fetchAnalyticsData(analyticsDateRange)}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-[11px] transition cursor-pointer inline-flex items-center gap-1"
+            >
+              <FiRotateCcw size={12} /> Retry Analytics Request
+            </button>
           </div>
+        ) : (
+          (() => {
+            const summary = analyticsData || {};
+            const totalSales = summary.totalOrderedValue ?? summary.totalSalesAmount ?? summary.totalAmount ?? summary.totalRevenue ?? summary.revenue;
+            const quantitySold = summary.totalQuantityOrdered ?? summary.totalQuantity ?? summary.totalUnitsSold ?? summary.quantity ?? summary.unitsSold;
+            const totalOrders = summary.totalOrders ?? summary.totalOrderCount ?? summary.totalDeals ?? summary.ordersCount ?? summary.count;
+            const currentStock = summary.currentStock ?? summary.stock ?? availableInventory;
 
-          <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Total Orders</span>
-            <span className="text-xl font-black text-slate-800">—</span>
-          </div>
+            const hasAnalytics = analyticsData && (totalSales !== undefined || quantitySold !== undefined || totalOrders !== undefined || currentStock !== undefined);
 
-          <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Revenue</span>
-            <span className="text-xl font-black text-slate-800">—</span>
-          </div>
-        </div>
+            return (
+              <div className="space-y-4">
+                {/* 4 Metric Cards cleanly mapped from single API response */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Total Sales</span>
+                    <span className="text-xl font-black text-emerald-600">
+                      {totalSales !== undefined && totalSales !== null ? formatCurrency(totalSales) : "₹0"}
+                    </span>
+                  </div>
 
-        {/* Chart Empty State */}
-        <div className="p-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50/40 text-center space-y-2">
-          <FiPieChart size={32} className="mx-auto text-slate-300" />
-          <h4 className="text-xs font-bold text-slate-600">Analytics data unavailable</h4>
-          <p className="text-2xs text-slate-400 max-w-sm mx-auto">
-            Analytics will appear when Product Analytics is connected to the backend reporting API.
-          </p>
-        </div>
+                  <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Quantity Sold</span>
+                    <span className="text-xl font-black text-blue-600">
+                      {quantitySold !== undefined && quantitySold !== null ? `${quantitySold} units` : "0 units"}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Total Orders</span>
+                    <span className="text-xl font-black text-slate-800">
+                      {totalOrders !== undefined && totalOrders !== null ? totalOrders : "0"}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50/70 border border-slate-150 rounded-2xl p-4">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">Current Stock</span>
+                    <span className="text-xl font-black text-purple-600">
+                      {currentStock !== undefined && currentStock !== null ? `${currentStock} units` : "—"}
+                    </span>
+                  </div>
+                </div>
+
+                {!hasAnalytics && (
+                  <div className="p-6 border border-dashed border-slate-200 rounded-2xl bg-slate-50/40 text-center space-y-1">
+                    <FiPieChart size={24} className="mx-auto text-slate-300 mb-1" />
+                    <h4 className="text-xs font-bold text-slate-600">No order sales activity for this period</h4>
+                    <p className="text-2xs text-slate-400 max-w-sm mx-auto font-mono">
+                      GET /api/order/product-level-order-sale-summary?productId={displayProductId}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        )}
       </section>
 
       {/* Main Grid: Left Details & Right Sidebar */}
@@ -677,9 +815,9 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
             </div>
 
             <div className="grid grid-cols-3 gap-3 pt-2 text-2xs font-semibold text-slate-500">
-              <div>Promoter: <span className="text-slate-700 font-bold">{promoterId || "Not Linked"}</span></div>
-              <div>Connector: <span className="text-slate-700 font-bold">{connectorId || "Not Linked"}</span></div>
-              <div>Connector Code: <span className="font-mono text-slate-700 font-bold">{connectorCode || "—"}</span></div>
+              <div>Promoter: <span className="text-slate-700 font-bold">{renderTechId(promoterId) !== "—" ? renderTechId(promoterId) : "Not Linked"}</span></div>
+              <div>Connector: <span className="text-slate-700 font-bold">{renderTechId(connectorId) !== "—" ? renderTechId(connectorId) : "Not Linked"}</span></div>
+              <div>Connector Code: <span className="font-mono text-slate-700 font-bold">{renderTechId(connectorCode)}</span></div>
             </div>
           </div>
 
@@ -767,7 +905,7 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
                   {sellerDetails?.businessName || sellerDetails?.name || "Gattamafia seller"}
                 </h4>
                 <p className="text-3xs text-slate-400 font-mono mt-0.5 truncate">
-                  ID: {sellerDetails?._id || sellerDetails?.id || "6a7cb04577d7182b4af4c2b6"}
+                  ID: {renderTechId(sellerDetails?._id || sellerDetails?.id || "6a7cb04577d7182b4af4c2b6")}
                 </p>
               </div>
             </div>
@@ -808,17 +946,17 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
 
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-400">Promoter</span>
-              <span className="font-bold text-slate-700">{promoterId || "Not Linked"}</span>
+              <span className="font-bold text-slate-700">{renderTechId(promoterId) !== "—" ? renderTechId(promoterId) : "Not Linked"}</span>
             </div>
 
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-400">Connector</span>
-              <span className="font-bold text-slate-700">{connectorId || "Not Linked"}</span>
+              <span className="font-bold text-slate-700">{renderTechId(connectorId) !== "—" ? renderTechId(connectorId) : "Not Linked"}</span>
             </div>
 
             <div className="flex justify-between items-center">
               <span className="font-semibold text-slate-400">Connector Code</span>
-              <span className="font-mono font-bold text-slate-700">{connectorCode || "—"}</span>
+              <span className="font-mono font-bold text-slate-700">{renderTechId(connectorCode)}</span>
             </div>
           </div>
 
@@ -911,7 +1049,7 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
                       <div className="min-w-0 flex-1 pt-1 flex justify-between gap-2">
                         <div>
                           <p className="font-bold text-slate-800">Approved</p>
-                          <p className="text-[10px] text-slate-400">By: {approvedBy || "68d9005ae8d953aa980e18ee"}</p>
+                          <p className="text-[10px] text-slate-400">By: {renderTechId(approvedBy || "68d9005ae8d953aa980e18ee")}</p>
                         </div>
                         <span className="text-[9px] font-semibold text-slate-400">{formatDate(approvedAt || createdAt)}</span>
                       </div>
@@ -934,24 +1072,24 @@ export const ProductDetail = ({ product, onEdit, onBack, onRefresh }: ProductDet
 
             {isTechInfoOpen && (
               <div className="p-4 space-y-2 border-t border-slate-100 text-2xs font-mono bg-slate-900 text-slate-300">
-                <div>Product ID: {product._id || product.id}</div>
-                <div>Master ID: {product.masterId || masterDetails?._id || "—"}</div>
-                <div>Seller ID: {product.sellerId || sellerDetails?._id || "—"}</div>
-                <div>Pickup ID: {product.pickupId || pickupAddress?._id || "—"}</div>
-                <div>Category ID: {product.categoryId || product.categoryDetails?._id || "—"}</div>
-                <div>Product Category ID: {product.productCategoryId || "—"}</div>
-                <div>Sub Category ID: {product.subCategoryId || "—"}</div>
-                <div>Promoter ID: {promoterId || "—"}</div>
-                <div>Connector ID: {connectorId || "—"}</div>
-                <div>Connector Code: {connectorCode || "—"}</div>
-                <div>Created At: {createdAt || "—"}</div>
-                <div>Updated At: {updatedAt || "—"}</div>
-                <div>Approved At: {approvedAt || "—"}</div>
-                <div>Approved By: {approvedBy || "—"}</div>
-                <div>Rejected At: {rejectedAt || "—"}</div>
-                <div>Rejected By: {rejectedBy || "—"}</div>
-                <div>createdAt_EP: {createdAt_EP || "—"}</div>
-                <div>updatedAt_EP: {updatedAt_EP || "—"}</div>
+                <div>Product ID: {renderTechId(product?._id || product?.id)}</div>
+                <div>Master ID: {renderTechId(product?.masterId || masterDetails?._id)}</div>
+                <div>Seller ID: {renderTechId(product?.sellerId || sellerDetails?._id)}</div>
+                <div>Pickup ID: {renderTechId(product?.pickupId || pickupAddress?._id)}</div>
+                <div>Category ID: {renderTechId(product?.categoryId || product?.categoryDetails?._id)}</div>
+                <div>Product Category ID: {renderTechId(product?.productCategoryId)}</div>
+                <div>Sub Category ID: {renderTechId(product?.subCategoryId)}</div>
+                <div>Promoter ID: {renderTechId(promoterId)}</div>
+                <div>Connector ID: {renderTechId(connectorId)}</div>
+                <div>Connector Code: {renderTechId(connectorCode)}</div>
+                <div>Created At: {renderTechId(createdAt)}</div>
+                <div>Updated At: {renderTechId(updatedAt)}</div>
+                <div>Approved At: {renderTechId(approvedAt)}</div>
+                <div>Approved By: {renderTechId(approvedBy)}</div>
+                <div>Rejected At: {renderTechId(rejectedAt)}</div>
+                <div>Rejected By: {renderTechId(rejectedBy)}</div>
+                <div>createdAt_EP: {renderTechId(createdAt_EP)}</div>
+                <div>updatedAt_EP: {renderTechId(updatedAt_EP)}</div>
               </div>
             )}
           </div>

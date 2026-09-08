@@ -60,6 +60,7 @@ export const MasterProductList = () => {
         skuCode: product.skuCode,
         mrp: product.categoryDetails?.mrp ? Number(product.categoryDetails.mrp) : 0,
         size: product.size,
+        unit: product.unit || "",
         active: newActiveState,
         media: product.media || [],
       };
@@ -157,7 +158,7 @@ export const MasterProductList = () => {
                 <th className="py-4 px-6">SKU Code</th>
                 <th className="py-4 px-6">Brand</th>
                 <th className="py-4 px-6">Category Name</th>
-                <th className="py-4 px-6">Size(s)</th>
+                <th className="py-4 px-6">Size / Unit</th>
                 <th className="py-4 px-6 text-center">Status</th>
                 <th className="py-4 px-6 text-right">Actions</th>
               </tr>
@@ -185,7 +186,16 @@ export const MasterProductList = () => {
                         <td className="py-4 px-6 font-mono text-xs">{p.skuCode}</td>
                         <td className="py-4 px-6">{p.brand || "—"}</td>
                         <td className="py-4 px-6">{p.categoryDetails?.name || "—"}</td>
-                        <td className="py-4 px-6 font-medium">{p.size || "—"}</td>
+                        <td className="py-4 px-6 font-medium">
+                          {p.size || p.unit ? (
+                            <span>
+                              {p.size || "—"}
+                              {p.unit && <span className="ml-1 text-xs text-slate-400 font-normal">({p.unit})</span>}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
                         <td className="py-4 px-6 text-center" onClick={(e) => e.stopPropagation()}>
                           {canEdit ? (
                             <button

@@ -29,6 +29,7 @@ interface IMasterProduct {
   productSubCategory?: string;
   mrp: string;
   size: string;
+  unit?: string;
   images: File[] | string | string[] | null;
   description: string;
 }
@@ -48,6 +49,7 @@ export interface ICategoryServer {
   skuCode: string;
   active: boolean;
   size: string;
+  unit?: string;
   categoryName: string;
   categoryId: string;
   categoryDetails: { [key: string]: any };
@@ -521,6 +523,33 @@ export interface WalletHistoryResponse {
   data: WalletHistoryItem[];
   pagination?: WalletHistoryPagination;
 }
+
+export interface IndustryType {
+  _id: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+  status: "active" | "inactive";
+  createdAt_EP?: number;
+  updatedAt_EP?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface IndustryTypePagination {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface IndustryTypeResponse {
+  type: string;
+  message: string;
+  data: IndustryType[];
+  pagination: IndustryTypePagination;
+}
+
 
 
 

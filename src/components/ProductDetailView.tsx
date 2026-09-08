@@ -22,7 +22,8 @@ import CommercialFlagsCard from "./approvals/product/CommercialFlagsCard";
 import ProductDescriptionCard from "./approvals/product/ProductDescriptionCard";
 import JsonDebugViewer from "./approvals/product/JsonDebugViewer";
 
-import { FiCopy, FiTag, FiUser } from "react-icons/fi";
+import { FiCopy, FiTag, FiUser, FiCheckCircle, FiAlertCircle, FiXCircle } from "react-icons/fi";
+import { validateCommissionAllocation } from "../utils/utils";
 
 interface ProductDetailViewProps {
   req: any;
@@ -92,7 +93,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
     promoterFee: "",
     messengerFee: "",
     connectorFee: "",
-    platformFee: "3", // default 3%
+    platformFee: "",
   });
 
   const [rejectReason, setRejectReason] = useState("");
@@ -305,17 +306,41 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
 
   const generalInfo = getGeneralInfo();
 
+  // Dynamic API Promotion Fee extraction
+  const apiPromotionFee = Number(
+    product.promotionFee ??
+    product.promotionCommission ??
+    product.promotionFeePercentage ??
+    metadata.promotionFee ??
+    metadata.promotionCommission ??
+    0
+  );
+
+  const commissionValidation = validateCommissionAllocation(
+    fees.promoterFee || fees.messengerFee,
+    fees.connectorFee,
+    fees.platformFee,
+    apiPromotionFee
+  );
+
   // Decision submit handlers
   const submitApproval = async () => {
     setError("");
-    const m = parseInt(fees.promoterFee || fees.messengerFee);
-    const c = parseInt(fees.connectorFee);
-    const p = parseInt(fees.platformFee);
+    const validation = validateCommissionAllocation(
+      fees.promoterFee || fees.messengerFee,
+      fees.connectorFee,
+      fees.platformFee,
+      apiPromotionFee
+    );
 
-    if (isNaN(m) || isNaN(c) || isNaN(p)) {
-      setError("All commission fields must be valid numbers");
+    if (!validation.isValid) {
+      setError(validation.message);
       return;
     }
+
+    const m = parseFloat(String(fees.promoterFee || fees.messengerFee || 0)) || 0;
+    const c = parseFloat(String(fees.connectorFee || 0)) || 0;
+    const p = parseFloat(String(fees.platformFee || 0)) || 0;
 
     const payloadFees = {
       promoterCommission: m,
@@ -588,7 +613,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
           <div className="lg:col-span-1 sticky top-24 space-y-4">
             <ApprovalActions
               status={req.status}
-              onApprove={() => setShowApproveModal(true)}
+              onApprove={() => {
+                setFees({ promoterFee: "", messengerFee: "", connectorFee: "", platformFee: "" });
+                setError("");
+                setShowApproveModal(true);
+              }}
               onReject={() => setShowRejectModal(true)}
               onRequestChanges={() => setShowChangesModal(true)}
               onViewSeller={() => alert("Opening Seller Profile...")}
@@ -626,12 +655,19 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </div>
             )}
 
+            {/* API Promotion Fee Summary Badge */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex justify-between items-center text-xs font-bold text-slate-700">
+              <span className="text-slate-500 font-semibold">Promotion Fee (from API):</span>
+              <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2.5 py-0.5 rounded-lg font-black">{apiPromotionFee}%</span>
+            </div>
+
             <div className="space-y-3.5">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Promoter Commission (%)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 5"
+                  step="any"
+                  placeholder="e.g. 3"
                   value={fees.promoterFee || fees.messengerFee}
                   onChange={(e) => setFees({ ...fees, promoterFee: e.target.value, messengerFee: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs focus:bg-white focus:border-slate-400 outline-none transition"
@@ -642,7 +678,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Connector Commission (%)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 3"
+                  step="any"
+                  placeholder="e.g. 1"
                   value={fees.connectorFee}
                   onChange={(e) => setFees({ ...fees, connectorFee: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs focus:bg-white focus:border-slate-400 outline-none transition"
@@ -653,12 +690,36 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
                 <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Platform Margin / Fee (%)</label>
                 <input
                   type="number"
-                  placeholder="e.g. 3"
+                  step="any"
+                  placeholder="e.g. 1"
                   value={fees.platformFee}
                   onChange={(e) => setFees({ ...fees, platformFee: e.target.value })}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs focus:bg-white focus:border-slate-400 outline-none transition"
                 />
               </div>
+            </div>
+
+            {/* Dynamic Inline Validation Alert */}
+            <div className={`p-3 rounded-xl border text-xs font-bold flex items-center justify-between gap-2 transition ${
+              commissionValidation.status === "success"
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : commissionValidation.status === "warning"
+                ? "bg-amber-50 text-amber-800 border-amber-200"
+                : "bg-rose-50 text-rose-800 border-rose-200"
+            }`}>
+              <div className="flex items-center gap-2">
+                {commissionValidation.status === "success" ? (
+                  <FiCheckCircle className="text-emerald-600 flex-shrink-0" size={16} />
+                ) : commissionValidation.status === "warning" ? (
+                  <FiAlertCircle className="text-amber-600 flex-shrink-0" size={16} />
+                ) : (
+                  <FiXCircle className="text-rose-600 flex-shrink-0" size={16} />
+                )}
+                <span>{commissionValidation.message}</span>
+              </div>
+              <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-white/80 border border-current whitespace-nowrap">
+                {commissionValidation.total}% / {commissionValidation.target}%
+              </span>
             </div>
 
             <div className="flex gap-2 pt-3 border-t border-slate-100 justify-end">
@@ -670,8 +731,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({
               </button>
               <button
                 onClick={submitApproval}
-                disabled={loading}
-                className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs cursor-pointer transition disabled:opacity-50"
+                disabled={loading || !commissionValidation.isValid}
+                className="px-5 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-xs cursor-pointer transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Complete Approval
               </button>

@@ -3,6 +3,8 @@ import { httpClient } from "./ApiService";
 
 export type CommissionStatus =
   | "ELIGIBLE"
+  | "PARTIALLY_ELIGIBLE"
+  | "NOT_ELIGIBLE"
   | "SCHEDULED"
   | "DUE"
   | "ON_HOLD"
@@ -126,11 +128,23 @@ export class PromoterCommissionService {
             const amount = item.promoterCommission || 0;
             if (amount > 0 || item.promoterId) {
               const promoterId = item.promoterId || "USR-PROMOTER-001";
-              const isTransferred = item.commissionTransferred || false;
+              const isTransferred = Boolean(item.commissionTransferred);
+              const isDelivered =
+                item.status === 4 ||
+                item.status === "4" ||
+                String(item.status).toUpperCase() === "DELIVERED" ||
+                Boolean(item.deliveredAt) ||
+                String(item.deliveryStatus).toUpperCase() === "DELIVERED" ||
+                (ord.status === 4 && item.status === undefined);
+
               const commId = `COMM-${ord.numericOrderId || ord._id.slice(-6)}-${idx + 1}`;
               
               // Calculate status
-              let itemStatus: CommissionStatus = isTransferred ? "TRANSFERRED" : "ELIGIBLE";
+              let itemStatus: CommissionStatus = isTransferred
+                ? "TRANSFERRED"
+                : isDelivered
+                ? "ELIGIBLE"
+                : "NOT_ELIGIBLE";
 
               extracted.push({
                 _id: commId,

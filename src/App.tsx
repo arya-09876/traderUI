@@ -8,6 +8,7 @@ import { Approvals } from "./pages/Approvals";
 import { Products } from "./pages/Products";
 import Users from "./pages/Users";
 import { CategoryList } from "./pages/CategoryList";
+import { IndustryTypes } from "./pages/IndustryTypes";
 // import { ProductDetail } from "./pages/ProductDetail";
 import { OrderList } from "./pages/OrderList";
 import { Banner } from "./pages/Banner";
@@ -25,12 +26,22 @@ import { WalletCommissionRules } from "./pages/WalletCommissionRules";
 import { WalletAnalytics } from "./pages/WalletAnalytics";
 import { WalletSettings } from "./pages/WalletSettings";
 import { PromoterCommissionRelease } from "./pages/PromoterCommissionRelease";
+import MyProfile from "./pages/MyProfile";
 
 const App = () => (
   <Router>
     <div className="bg-gray-50 flex flex-col gap-4 min-h-screen">
       <Routes>
         <Route path="/" element={<LoginPage />} />
+
+        <Route
+          path="/profile"
+          element={
+            <ProtectRoute>
+              <MyProfile />
+            </ProtectRoute>
+          }
+        />
 
          <Route
           path="/dashboard"
@@ -55,6 +66,15 @@ const App = () => (
           element={
             <ProtectRoute>
               <CategoryList />
+            </ProtectRoute>
+          }
+        />
+
+        <Route
+          path="/industry-types"
+          element={
+            <ProtectRoute>
+              <IndustryTypes />
             </ProtectRoute>
           }
         />
