@@ -34,7 +34,7 @@ export const ProtectRoute = ({ children }: { children: React.ReactNode }) => {
   const [openNotifications, setOpenNotifications] = useState(false);
 
   // Dynamic user session tracking
-  const [sessionCount, setSessionCount] = useState(0);
+  const [, setSessionCount] = useState(0);
   useEffect(() => {
     const handleUpdate = () => setSessionCount((prev) => prev + 1);
     window.addEventListener("lottmart_user_session_updated", handleUpdate);

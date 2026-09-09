@@ -17,8 +17,6 @@ import {
   FiCheckCircle,
   FiEdit3,
   FiLock,
-  FiCalendar,
-  FiClock,
   FiCopy,
   FiCheck,
   FiKey,
@@ -27,7 +25,6 @@ import {
   FiX,
   FiRefreshCw,
   FiActivity,
-  FiGlobe,
 } from "react-icons/fi";
 
 export const MyProfile: React.FC = () => {
